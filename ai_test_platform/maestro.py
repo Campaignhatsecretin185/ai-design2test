@@ -28,6 +28,10 @@ def target_to_yaml(target: dict[str, Any]) -> str:
     return yaml_scalar(str(target))
 
 
+def target_is_empty(target: dict[str, Any]) -> bool:
+    return not any(str(value).strip() for value in target.values())
+
+
 def assertion_to_commands(assertion: TestAssertion) -> list[str]:
     if assertion.type in {"visible", "exists"}:
         return [f"- assertVisible: {target_to_yaml(assertion.target)}"]
@@ -58,6 +62,8 @@ class MaestroFlowGenerator:
             elif step.action == "tap":
                 lines.append(f"- tapOn: {target_to_yaml(step.target)}")
             elif step.action == "input":
+                if step.target and not target_is_empty(step.target):
+                    lines.append(f"- tapOn: {target_to_yaml(step.target)}")
                 lines.append(f"- inputText: {yaml_scalar(step.value)}")
             elif step.action == "assert":
                 target = step.target or {"text": step.value}
@@ -81,12 +87,48 @@ class MaestroFlowGenerator:
         return yaml, path
 
 
+def validate_flow_file(flow_path: Path, require_real_app_id: bool = False) -> list[str]:
+    issues: list[str] = []
+    if not flow_path.exists():
+        return [f"Flow file does not exist: {flow_path}"]
+    text = flow_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    app_id_line = next((line for line in lines if line.startswith("appId:")), "")
+    if not app_id_line:
+        issues.append("Missing appId header.")
+    elif require_real_app_id and "${APP_ID}" in app_id_line:
+        issues.append("APP_ID is still the placeholder ${APP_ID}; set APP_ID before real Maestro execution.")
+    if "---" not in lines:
+        issues.append("Missing Maestro document separator '---'.")
+    empty_target_markers = [
+        'tapOn: "{}"',
+        'assertVisible: "{}"',
+        'assertNotVisible: "{}"',
+        'element: "{}"',
+        'visible: "{}"',
+    ]
+    for marker in empty_target_markers:
+        if marker in text:
+            issues.append(f"Command has an empty target: {marker}")
+    if 'inputText: ""' in text:
+        issues.append("inputText command has an empty value.")
+    return issues
+
+
 class MaestroRunner:
     def __init__(self, enabled: bool | None = None):
         self.enabled = enabled if enabled is not None else os.environ.get("MAESTRO_ENABLED") == "true"
 
     def run(self, flow_path: Path) -> dict[str, Any]:
         start = monotonic()
+        validation_issues = validate_flow_file(flow_path, require_real_app_id=self.enabled)
+        if validation_issues:
+            return {
+                "status": "blocked",
+                "duration_ms": int((monotonic() - start) * 1000),
+                "output": "Flow validation blocked execution:\n" + "\n".join(f"- {issue}" for issue in validation_issues),
+                "artifacts": {"flow_path": str(flow_path), "dry_run": not self.enabled, "validation_issues": validation_issues},
+            }
         if not self.enabled:
             return {
                 "status": "passed",
@@ -115,4 +157,3 @@ class MaestroRunner:
             "output": output,
             "artifacts": {"flow_path": str(flow_path), "return_code": process.returncode},
         }
-

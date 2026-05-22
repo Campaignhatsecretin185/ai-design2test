@@ -310,7 +310,8 @@ Rules:
 - Use action names from the schema only.
 - Use target_text when the UI copy is known. Use target_id only when an explicit id is known.
 - Include smoke and regression tags for critical happy paths.
-- Generate cases from Figma/design context first. Treat the requirement text only as optional guidance.
+- Generate cases from structured source models and Figma/design context first. Treat the requirement text only as optional guidance.
+- Prefer controls, visible_texts, states, risks, and testable_points from source_model context when present.
 - Keep steps concise and executable through Maestro-style UI automation.
 
 Feature: {feature}

@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+import hashlib
 import json
+import re
 
 
 def utc_now() -> str:
@@ -21,6 +23,10 @@ def loads(value: str | None, default: Any) -> Any:
         return json.loads(value)
     except json.JSONDecodeError:
         return default
+
+
+def canonical_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
 
 
 @dataclass
@@ -62,10 +68,39 @@ class TestCase:
     steps: list[TestStep]
     assertions: list[TestAssertion]
     source_refs: list[dict[str, Any]]
+    fingerprint: str = ""
     status: str = "ai_generated"
     version: int = 1
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
+
+    def compute_fingerprint(self) -> str:
+        primary_targets = []
+        for step in self.steps:
+            if step.target:
+                primary_targets.append(step.target)
+        for assertion in self.assertions:
+            if assertion.target:
+                primary_targets.append(assertion.target)
+        intent = {
+            "feature": canonical_text(self.feature),
+            "title": canonical_text(self.title),
+            "priority": canonical_text(self.priority),
+            "platforms": sorted(canonical_text(item) for item in self.platforms),
+            "tags": sorted(canonical_text(item) for item in self.tags if item not in {"ai-generated"}),
+            "actions": [canonical_text(step.action) for step in self.steps],
+            "targets": primary_targets[:3],
+            "assertions": [
+                {
+                    "type": canonical_text(assertion.type),
+                    "target": assertion.target,
+                    "expected": canonical_text(assertion.expected),
+                }
+                for assertion in self.assertions[:3]
+            ],
+        }
+        digest = hashlib.sha1(dumps(intent).encode("utf-8")).hexdigest()
+        return digest[:20]
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -79,6 +114,7 @@ class TestCase:
             "steps": [step.__dict__ for step in self.steps],
             "assertions": [assertion.__dict__ for assertion in self.assertions],
             "source_refs": self.source_refs,
+            "fingerprint": self.fingerprint or self.compute_fingerprint(),
             "status": self.status,
             "version": self.version,
             "created_at": self.created_at,
@@ -98,9 +134,9 @@ class TestCase:
             steps=[TestStep(**item) for item in loads(row["steps"], [])],
             assertions=[TestAssertion(**item) for item in loads(row["assertions"], [])],
             source_refs=loads(row["source_refs"], []),
+            fingerprint=row["fingerprint"] if "fingerprint" in row.keys() else "",
             status=row["status"],
             version=row["version"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
-

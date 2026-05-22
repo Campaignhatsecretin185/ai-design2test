@@ -52,11 +52,25 @@ class App:
     def generate_cases(self, payload: dict[str, Any]) -> dict[str, Any]:
         cases = self.generator.generate(payload)
         stored = []
+        duplicate_count = 0
         for case in cases:
+            case.fingerprint = case.fingerprint or case.compute_fingerprint()
+            existing = self.db.get_test_case_by_fingerprint(case.fingerprint)
+            if existing:
+                duplicate_count += 1
+                existing_payload = existing.to_payload()
+                existing_payload["deduped"] = True
+                existing_payload["duplicate_reason"] = "matched existing test case fingerprint"
+                stored.append(existing_payload)
+                continue
             case.id = self.db.add_test_case(case)
-            stored.append(case.to_payload())
+            stored_payload = case.to_payload()
+            stored_payload["deduped"] = False
+            stored.append(stored_payload)
         return {
             "cases": stored,
+            "created_count": len(stored) - duplicate_count,
+            "duplicate_count": duplicate_count,
             "generation_mode": self.generator.last_generation_mode,
             "generation_error": self.generator.last_generation_error,
         }

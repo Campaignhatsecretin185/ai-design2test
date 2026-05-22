@@ -48,6 +48,7 @@ class CaseGenerator:
         screen = str(payload.get("screen") or "")
         platforms = payload.get("platforms") or ["android", "ios"]
         max_cases = int(payload.get("max_cases") or 4)
+        source_model_contexts = self._source_model_contexts(feature, screen, limit=4)
 
         contexts = self.retriever.search(
             query=requirement,
@@ -64,7 +65,7 @@ class CaseGenerator:
             source_types=["figma", "figma_mcp", "figma_image", "design"],
             limit=4,
         )
-        contexts = self._merge_contexts([figma_contexts, contexts])
+        contexts = self._merge_contexts([source_model_contexts, figma_contexts, contexts])
         ai_cases = self._generate_with_ai(
             requirement=requirement,
             feature=feature,
@@ -253,27 +254,90 @@ class CaseGenerator:
         )
 
     def _source_refs(self, contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            {
-                "type": item["source_type"],
-                "document_id": item["document_id"],
-                "chunk_id": item["chunk_id"],
-                "score": item["score"],
+        refs: list[dict[str, Any]] = []
+        for item in contexts[:4]:
+            ref = {
+                "type": item.get("source_type", "unknown"),
+                "score": item.get("score", 0),
             }
-            for item in contexts[:4]
-        ]
+            for key in ("document_id", "chunk_id", "source_model_id"):
+                if item.get(key) is not None:
+                    ref[key] = item[key]
+            refs.append(ref)
+        return refs
 
     def _merge_contexts(self, groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
         merged: list[dict[str, Any]] = []
-        seen: set[tuple[int, int]] = set()
+        seen: set[tuple[str, str, str, str]] = set()
         for group in groups:
             for item in group:
-                key = (int(item["document_id"]), int(item["chunk_id"]))
+                key = (
+                    str(item.get("source_type", "")),
+                    str(item.get("document_id", "")),
+                    str(item.get("chunk_id", "")),
+                    str(item.get("source_model_id", "")),
+                )
                 if key in seen:
                     continue
                 seen.add(key)
                 merged.append(item)
         return sorted(merged, key=lambda item: item["score"], reverse=True)
+
+    def _source_model_contexts(self, feature: str, screen: str, limit: int) -> list[dict[str, Any]]:
+        database = getattr(self.retriever, "database", None)
+        if not database or not hasattr(database, "list_source_models"):
+            return []
+        source_models = database.list_source_models(
+            feature=feature if feature != "general" else "",
+            screen=screen,
+            limit=limit,
+        )
+        contexts: list[dict[str, Any]] = []
+        for model in source_models:
+            model_json = model.get("model_json", {})
+            contexts.append(
+                {
+                    "source_type": "source_model",
+                    "source_model_id": model.get("id"),
+                    "feature": model.get("feature", ""),
+                    "screen": model.get("screen", ""),
+                    "score": round(0.95 + float(model.get("confidence") or 0) * 0.05, 4),
+                    "content": self._format_source_model(model_json),
+                }
+            )
+        return contexts
+
+    def _format_source_model(self, model: dict[str, Any]) -> str:
+        controls = model.get("controls") or model.get("elements") or []
+        lines = [
+            f"Structured source model for {model.get('screen', 'Unknown Screen')}",
+            f"Feature: {model.get('feature', '')}",
+            "",
+            "Visible texts:",
+            *[f"- {item}" for item in model.get("visible_texts", [])],
+            "",
+            "Controls:",
+        ]
+        for control in controls[:30]:
+            if not isinstance(control, dict):
+                continue
+            label = control.get("label") or control.get("text") or control.get("name") or "Unnamed"
+            role = control.get("role") or control.get("type") or "element"
+            description = control.get("description") or control.get("component") or ""
+            lines.append(f"- {role}: {label} {description}".strip())
+        lines.append("")
+        lines.append("States:")
+        lines.extend([f"- {item}" for item in model.get("states", [])])
+        lines.append("")
+        lines.append("Testable points:")
+        lines.extend([f"- {item}" for item in model.get("testable_points", [])])
+        lines.append("")
+        lines.append("Risks:")
+        lines.extend([f"- {item}" for item in model.get("risks", [])])
+        lines.append("")
+        lines.append("Open questions:")
+        lines.extend([f"- {item}" for item in model.get("open_questions", [])])
+        return "\n".join(lines)
 
     def _entry_text(self, feature: str) -> str:
         common = {

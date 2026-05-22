@@ -9,8 +9,8 @@ from ai_test_platform.ai_client import AIStatus
 from ai_test_platform.file_ingestion import extract_text
 from ai_test_platform.figma_mcp import build_screen_model, parse_figma_url, screen_model_to_document
 from ai_test_platform.generator import CaseGenerator
-from ai_test_platform.maestro import MaestroFlowGenerator
-from ai_test_platform.models import Document
+from ai_test_platform.maestro import MaestroFlowGenerator, MaestroRunner
+from ai_test_platform.models import Document, TestAssertion, TestCase, TestStep
 from ai_test_platform.rag import Retriever, chunk_document
 from ai_test_platform.regression import RegressionSelector
 
@@ -75,6 +75,28 @@ class CoreFlowTest(unittest.TestCase):
             self.assertEqual(memory["counts"]["features"], 1)
             self.assertEqual(memory["counts"]["screens"], 1)
             self.assertEqual(memory["counts"]["figma_artifacts"], 1)
+            self.assertGreaterEqual(memory["counts"]["rag_nodes"], 1)
+            source_model_id = db.add_source_model(
+                source_type="figma_image",
+                feature="login",
+                screen="Login Screen",
+                model_json={
+                    "source_type": "figma_image",
+                    "feature": "login",
+                    "screen": "Login Screen",
+                    "visible_texts": ["Login", "Continue"],
+                    "controls": [{"role": "button", "label": "Continue"}],
+                    "states": ["default"],
+                    "testable_points": ["Continue button should be visible"],
+                    "risks": ["Primary action may be disabled before valid input"],
+                    "open_questions": [],
+                    "confidence": 0.9,
+                },
+                confidence=0.9,
+            )
+            rag_hits = Retriever(db).search("Continue button", feature="login", screen="Login Screen", limit=3)
+            self.assertTrue(rag_hits)
+            self.assertTrue(any("Continue" in hit["content"] for hit in rag_hits))
 
             generator = CaseGenerator(Retriever(db))
             cases = generator.generate(
@@ -87,9 +109,12 @@ class CoreFlowTest(unittest.TestCase):
             )
             self.assertGreaterEqual(len(cases), 2)
             self.assertFalse(any("cross-source" in case.tags for case in cases))
+            self.assertTrue(any(ref["type"] == "source_model" for ref in cases[0].source_refs))
             for case in cases:
                 case.id = db.add_test_case(case)
                 db.update_test_case_status(case.id, "approved")
+            duplicate_id = db.add_test_case(cases[0])
+            self.assertEqual(duplicate_id, cases[0].id)
             self.assertGreaterEqual(db.memory_summary()["counts"]["case_links"], len(cases))
             db.add_source_file(
                 filename="login.png",
@@ -105,20 +130,6 @@ class CoreFlowTest(unittest.TestCase):
                 document_id=figma_document_id,
             )
             self.assertEqual(db.memory_summary()["counts"]["source_files"], 1)
-            source_model_id = db.add_source_model(
-                source_type="figma_image",
-                feature="login",
-                screen="Login Screen",
-                model_json={
-                    "source_type": "figma_image",
-                    "feature": "login",
-                    "screen": "Login Screen",
-                    "visible_texts": ["Login", "Continue"],
-                    "controls": [{"role": "button", "label": "Continue"}],
-                    "testable_points": ["Continue button should be visible"],
-                },
-                confidence=0.9,
-            )
             db.add_source_model_version(source_model_id, {"feature": "login", "version": 2}, "Updated Figma image model")
             change_set_id = db.create_change_set(
                 name="Login iteration",
@@ -143,12 +154,15 @@ class CoreFlowTest(unittest.TestCase):
             self.assertGreaterEqual(summary["counts"]["test_case_versions"], 1)
             self.assertEqual(summary["counts"]["change_sets"], 1)
             self.assertEqual(summary["counts"]["case_suggestions"], 1)
+            self.assertGreaterEqual(summary["counts"]["rag_nodes"], 4)
+            self.assertEqual(summary["rag"]["backend"], "sqlite")
 
             flow_generator = MaestroFlowGenerator(app_id="com.example.app", flow_dir=Path(directory) / "flows")
             yaml, path = flow_generator.write(cases[0])
             self.assertIn("appId: com.example.app", yaml)
             self.assertIn("launchApp", yaml)
             self.assertTrue(path.exists())
+            self.assertEqual(MaestroRunner(enabled=False).run(path)["status"], "passed")
 
             db.add_run_result(
                 run_id=db.create_run("failed login run", "dry-run"),
@@ -161,6 +175,7 @@ class CoreFlowTest(unittest.TestCase):
             stats = db.get_case_stats_map()
             self.assertEqual(stats[cases[0].id]["last_status"], "failed")
             self.assertEqual(db.memory_summary()["counts"]["failure_patterns"], 1)
+            self.assertGreaterEqual(db.memory_summary()["counts"]["rag_nodes"], summary["counts"]["rag_nodes"])
 
             selected = RegressionSelector().select(
                 db.list_test_cases(),
@@ -205,6 +220,25 @@ class CoreFlowTest(unittest.TestCase):
             self.assertEqual(generator.last_generation_mode, "ai")
             self.assertEqual(cases[0].title, "AI login happy path")
             self.assertIn("ai-generated", cases[0].tags)
+
+    def test_maestro_dry_run_blocks_invalid_flow(self) -> None:
+        with TemporaryDirectory() as directory:
+            invalid_case = TestCase(
+                id=1,
+                title="Invalid empty input flow",
+                feature="login",
+                priority="P1",
+                platforms=["android"],
+                tags=["regression"],
+                preconditions=["The app is installed"],
+                steps=[TestStep(action="launch_app"), TestStep(action="input", target={}, value="")],
+                assertions=[TestAssertion(type="visible", target={"text": "Login"}, expected="Login is visible")],
+                source_refs=[],
+            )
+            _, path = MaestroFlowGenerator(app_id="com.example.app", flow_dir=Path(directory) / "flows").write(invalid_case)
+            result = MaestroRunner(enabled=False).run(path)
+            self.assertEqual(result["status"], "blocked")
+            self.assertIn("inputText command has an empty value", result["output"])
 
 
 if __name__ == "__main__":
