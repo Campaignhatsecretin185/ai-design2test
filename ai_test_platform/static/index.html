@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI App Test Platform</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">AT</div>
+        <div>
+          <h1>AI Test</h1>
+          <p>Figma to Maestro</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="#ingest">Ingest</a>
+        <a href="#generate">Generate</a>
+        <a href="#library">Cases</a>
+        <a href="#regression">Regression</a>
+        <a href="#memory">Memory</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="dot"></span>
+        <span id="aiStatus">AI status loading...</span>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Figma-only MVP</p>
+          <h2>Design-driven mobile test automation</h2>
+          <p>Upload Figma screens, generate structured cases, execute with Maestro, and retain regression memory.</p>
+        </div>
+        <button id="refreshBtn" class="secondary">Refresh</button>
+      </header>
+
+      <main>
+        <section class="overview">
+          <div class="overview-item">
+            <span>Input</span>
+            <strong>Figma images + MCP</strong>
+          </div>
+          <div class="overview-item">
+            <span>Generation</span>
+            <strong>AI or fallback</strong>
+          </div>
+          <div class="overview-item">
+            <span>Execution</span>
+            <strong>Maestro YAML</strong>
+          </div>
+          <div class="overview-item">
+            <span>Memory</span>
+            <strong>Cases + failures</strong>
+          </div>
+        </section>
+
+        <section id="ingest" class="panel featured">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Step 01</p>
+              <h2>Upload Figma Design Images</h2>
+            </div>
+            <span class="pill">PNG / JPG / WebP</span>
+          </div>
+          <div class="grid two">
+            <label>Feature<input id="fileFeature" value="login"></label>
+            <label>Screen Prefix<input id="fileScreen" value="Login Flow"></label>
+          </div>
+          <div class="file-drop">
+            <input id="sourceFile" type="file" accept=".png,.jpg,.jpeg,.webp" multiple>
+            <p>Export multiple screens from Figma and upload them together.</p>
+          </div>
+          <button id="uploadFileBtn">Upload and Index Figma Images</button>
+          <div id="fileResult"></div>
+        </section>
+
+        <section class="layout-grid">
+          <section id="generate" class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Step 02</p>
+                <h2>Generate Test Cases</h2>
+              </div>
+              <span class="pill">DSL</span>
+            </div>
+            <div class="grid two">
+              <label>Feature<input id="genFeature" value="login"></label>
+              <label>Platforms<input id="genPlatforms" value="android,ios"></label>
+            </div>
+            <textarea id="requirement">Generate happy-path, UI-state, error-state, and regression test cases from the uploaded Figma design context.</textarea>
+            <button id="generateBtn">Generate and Save</button>
+            <div id="generationResult"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Optional</p>
+                <h2>Ingest Figma MCP Context</h2>
+              </div>
+              <span class="pill">JSON</span>
+            </div>
+            <div class="grid two">
+              <label>Figma URL<input id="figmaUrl" value="https://www.figma.com/design/demo/Login?node-id=1-2"></label>
+              <label>Feature<input id="figmaFeature" value="login"></label>
+            </div>
+            <label>Screen<input id="figmaScreen" value="Login Screen"></label>
+            <textarea id="figmaContext">{
+  "name": "Login Screen",
+  "type": "FRAME",
+  "children": [
+    { "id": "1:3", "type": "TEXT", "name": "Title", "characters": "Login" },
+    { "id": "1:4", "type": "INSTANCE", "name": "Phone Input", "componentName": "TextField" },
+    { "id": "1:5", "type": "INSTANCE", "name": "Continue Button", "componentName": "Button/Primary", "children": [
+      { "id": "1:6", "type": "TEXT", "name": "Button Label", "characters": "Continue" }
+    ] }
+  ]
+}</textarea>
+            <button id="ingestFigmaBtn">Ingest Figma Context</button>
+            <div id="figmaResult"></div>
+          </section>
+        </section>
+
+        <section id="library" class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Review</p>
+              <h2>Test Case Library</h2>
+            </div>
+          </div>
+          <div id="cases" class="cards"></div>
+        </section>
+
+        <section class="layout-grid">
+          <section id="regression" class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Step 03</p>
+                <h2>Regression Validation</h2>
+              </div>
+              <span class="pill">Risk based</span>
+            </div>
+            <div class="grid two">
+              <label>Changed Features<input id="changedFeatures" value="login"></label>
+              <label>Run Name<input id="runName" value="Login redesign regression"></label>
+            </div>
+            <textarea id="changeSummary">The login screen UI and invalid verification code message logic changed.</textarea>
+            <div class="actions">
+              <button id="selectRegressionBtn">Select Regression Cases</button>
+              <button id="runRegressionBtn">Run Regression Dry-Run</button>
+            </div>
+            <div id="regressionResult"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Execution</p>
+                <h2>Latest Run</h2>
+              </div>
+            </div>
+            <div id="runResult" class="console-empty">No run has been started.</div>
+          </section>
+        </section>
+
+        <section id="memory" class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">State</p>
+              <h2>Project Memory</h2>
+            </div>
+            <button id="loadMemoryContextBtn" class="secondary">Load Memory Context</button>
+          </div>
+          <div class="grid two">
+            <label>Memory Feature<input id="memoryFeature" value="login"></label>
+            <label>Memory Screen<input id="memoryScreen" value="Login Screen"></label>
+          </div>
+          <div id="memory"></div>
+          <div id="memoryContext"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

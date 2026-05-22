@@ -1,0 +1,18 @@
+{
+  "name": "ai-app-test-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI app testing MVP with RAG-style context retrieval, stored test cases, Maestro flow generation, regression selection, and reports.",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "python3 -m ai_test_platform.server",
+    "dev:maestro": "MAESTRO_ENABLED=true python3 -m ai_test_platform.server",
+    "test": "python3 -m unittest discover -s tests",
+    "check": "PYTHONPYCACHEPREFIX=/private/tmp/test_ai_pycache python3 -m py_compile ai_test_platform/server.py ai_test_platform/db.py ai_test_platform/models.py ai_test_platform/rag.py ai_test_platform/ai_client.py ai_test_platform/file_ingestion.py ai_test_platform/figma_mcp.py ai_test_platform/generator.py ai_test_platform/maestro.py ai_test_platform/regression.py ai_test_platform/report.py",
+    "docker:build": "docker build -t ai-app-test-platform .",
+    "docker:run": "docker run --rm -p 8080:8080 -v \"$PWD/data:/app/data\" ai-app-test-platform"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
