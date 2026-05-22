@@ -1,6 +1,15 @@
-# AI App Test Platform MVP
+# AI Driven App Test Platform MVP
 
 A deployable MVP for AI-assisted mobile app testing. It uses Maestro as the first automation executor while keeping an internal Test Case DSL, so Appium, Playwright, or device-cloud executors can be added later.
+
+## Display
+
+<img width="1715" height="980" alt="image" src="https://github.com/user-attachments/assets/ef5e5dc7-7b90-4765-b950-9a8b23164bab" />
+<img width="1715" height="980" alt="image" src="https://github.com/user-attachments/assets/dd9417c5-6214-4f71-be01-a5129a2e7cff" />
+<img width="1715" height="980" alt="image" src="https://github.com/user-attachments/assets/c5d69ddb-0f98-446d-a838-ec0a4dce4ec0" />
+
+
+
 
 ## Capabilities
 
@@ -291,3 +300,7 @@ The MVP includes explainable testing memory rather than black-box conversation m
 - Failure Patterns: aggregated failure or blocked outputs
 
 Regression selection uses these memories to increase the weight of recently failed cases, cases with failure history, and cases with stability risk.
+
+## Thanks
+[Maestro](https://github.com/mobile-dev-inc/maestro)
+[OpenAI](https://openai.com/codex/)
