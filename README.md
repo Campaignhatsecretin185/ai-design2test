@@ -49,119 +49,9 @@ Default database file:
 ./data/app.db
 ```
 
-## Main Workflow
+## Design
 
-```mermaid
-flowchart TD
-  A["Figma / Cursor MCP"] --> B["Export design images"]
-  B --> C["Upload Figma images"]
-  C --> D{"OPENAI_API_KEY set?"}
-  D -->|Yes| E["AI vision extracts source model"]
-  D -->|No| F["Store as AI-ready artifact"]
-  E --> G["Design memory"]
-  F --> G
-  G --> H["Retrieve related history with RAG"]
-  H --> I["Generate test cases"]
-  I --> J["Internal Test Case DSL"]
-  J --> K["Generate Maestro YAML"]
-  K --> L["Run with Maestro CLI or dry-run"]
-  L --> M["Store results and failure memory"]
-  M --> N["Select regression cases"]
-  M --> O["Generate HTML report"]
-```
-
-Workflow summary:
-
-1. Export one or more screens from Figma as PNG/JPG/WebP.
-2. Upload the design images in the Web UI.
-3. If OpenAI is configured, the platform extracts UI text, controls, states, risks, and testable points into a source model.
-4. The source model and related artifacts are stored as project memory.
-5. The generator retrieves related design/history context through the lightweight RAG layer.
-6. Test cases are generated as the platform's internal Test Case DSL.
-7. The DSL is converted into Maestro YAML.
-8. Maestro runs the generated flows in dry-run mode or through the local Maestro CLI.
-9. Run results, failure patterns, and case statistics feed back into regression selection.
-
-## Design Architecture
-
-```mermaid
-flowchart LR
-  subgraph Input["Input Layer"]
-    A["Figma images"]
-    B["Figma MCP context"]
-  end
-
-  subgraph AI["AI Layer"]
-    C["OpenAI vision extraction"]
-    D["Structured case generation"]
-  end
-
-  subgraph Memory["Project Memory"]
-    E["Source models"]
-    F["Document chunks"]
-    G["Test cases"]
-    H["Run stats"]
-    I["Failure patterns"]
-  end
-
-  subgraph Execution["Execution Layer"]
-    J["Test Case DSL"]
-    K["Maestro YAML"]
-    L["Maestro CLI"]
-  end
-
-  subgraph Output["Output Layer"]
-    M["Regression selection"]
-    N["HTML report"]
-  end
-
-  A --> C
-  B --> E
-  C --> E
-  E --> F
-  F --> D
-  G --> D
-  D --> J
-  J --> G
-  J --> K
-  K --> L
-  L --> H
-  L --> I
-  H --> M
-  I --> M
-  H --> N
-```
-
-Current implementation notes:
-
-- The active MVP is Figma-only. PRD ingestion is intentionally out of the main path.
-- OpenAI is optional. Without `OPENAI_API_KEY`, the system stores Figma images as AI-ready artifacts and uses rule-based fallback generation.
-- Maestro is optional for local development. Without `MAESTRO_ENABLED=true`, execution uses dry-run mode.
-- The platform stores its own Test Case DSL first and generates Maestro YAML as an executor artifact.
-
-## RAG and Embedding Roadmap
-
-Current MVP RAG is lightweight:
-
-```text
-document chunks + token similarity + feature/screen metadata boost
-```
-
-It does not yet use embeddings or a vector database.
-
-Recommended upgrade path:
-
-```mermaid
-flowchart TD
-  A["source models / documents / cases"] --> B["chunking"]
-  B --> C["embedding model"]
-  C --> D["PostgreSQL + pgvector"]
-  D --> E["semantic retrieval"]
-  E --> F["optional rerank"]
-  F --> G["AI test case generation"]
-```
-
-The retrieval interface can remain similar while the backend changes from token matching to vector search.
+See [DESIGN.md](./DESIGN.md) for the current workflow, architecture, data model, RAG approach, Maestro execution path, and project memory design.
 
 ## Docker
 
@@ -279,28 +169,8 @@ GET /api/ai/status
 - `GET /api/runs/{id}`
 - `GET /api/reports/{run_id}.html`
 
-## Design Choices
-
-The first version intentionally uses only the Python standard library so it can run in a clean environment. Suggested production upgrades:
-
-- API: FastAPI
-- RAG: LlamaIndex + pgvector
-- Workflow: LangGraph or Temporal
-- Queue: Celery / Dramatiq
-- Storage: PostgreSQL + S3/MinIO
-- Real execution: Maestro Cloud or a self-hosted device lab
-
-## Project Memory
-
-The MVP includes explainable testing memory rather than black-box conversation memory:
-
-- Source Memory: Figma design context, Figma images, historical case, and bug documents
-- Derived Memory: feature, screen, case-source links, and case-tag links
-- Execution Memory: case run count, pass rate, latest status, failure count, and flaky score
-- Failure Patterns: aggregated failure or blocked outputs
-
-Regression selection uses these memories to increase the weight of recently failed cases, cases with failure history, and cases with stability risk.
-
 ## Thanks
+
 [Maestro](https://github.com/mobile-dev-inc/maestro)
-[OpenAI](https://openai.com/codex/)
+
+[Codex](https://openai.com/codex/)
