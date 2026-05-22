@@ -372,6 +372,150 @@ erDiagram
   test_cases ||--o{ test_run_case_results : produces
   test_cases ||--o| case_run_stats : summarizes
   change_sets ||--o{ case_suggestions : contains
+
+  documents {
+    integer id
+    string title
+    string source_type
+    string feature
+    string screen
+  }
+
+  test_cases {
+    integer id
+    string title
+    string feature
+    string priority
+    string status
+    integer version
+  }
+
+  test_runs {
+    integer id
+    string name
+    string mode
+    string status
+  }
+
+  case_run_stats {
+    integer test_case_id
+    integer total_runs
+    integer failed_runs
+    float pass_rate
+    float flaky_score
+  }
+
+  source_models {
+    integer id
+    string source_type
+    string feature
+    string screen
+    string status
+  }
+
+  change_sets {
+    integer id
+    string name
+    string feature
+    string status
+  }
+```
+
+### Field Design
+
+#### `document_chunks`
+
+Stores searchable chunks derived from indexed source documents and AI-ready artifacts.
+
+| Field         | Type      | Required | Description                                                        |
+| ------------- | --------- | --------:| ------------------------------------------------------------------ |
+| `id`          | integer   | yes      | Primary key.                                                       |
+| `document_id` | integer   | yes      | Parent `documents.id`.                                             |
+| `chunk_index` | integer   | yes      | Stable order of the chunk within the source document.              |
+| `content`     | text      | yes      | Chunk text used for retrieval and prompting.                       |
+| `tokens`      | text/json | yes      | Token list serialized as JSON for lightweight retrieval.           |
+| `feature`     | text      | no       | Feature metadata copied from the parent source.                    |
+| `screen`      | text      | no       | Screen metadata copied from the parent source.                     |
+| `source_type` | text      | yes      | Source type such as `figma_image`, `figma_mcp`, or `history_case`. |
+| `created_at`  | text      | yes      | UTC timestamp.                                                     |
+
+#### `source_model_versions`
+
+Stores version history for extracted source models.
+
+| Field             | Type      | Required | Description                                     |
+| ----------------- | --------- | --------:| ----------------------------------------------- |
+| `id`              | integer   | yes      | Primary key.                                    |
+| `source_model_id` | integer   | yes      | Parent `source_models.id`.                      |
+| `version`         | integer   | yes      | Monotonic version number for this source model. |
+| `model_json`      | text/json | yes      | Full source model snapshot for this version.    |
+| `change_summary`  | text      | no       | Human or AI-generated summary of what changed.  |
+| `created_at`      | text      | yes      | UTC timestamp.                                  |
+
+#### `test_case_versions`
+
+Stores historical snapshots of generated or updated test cases.
+
+| Field           | Type      | Required | Description                                                                         |
+| --------------- | --------- | --------:| ----------------------------------------------------------------------------------- |
+| `id`            | integer   | yes      | Primary key.                                                                        |
+| `test_case_id`  | integer   | yes      | Parent `test_cases.id`.                                                             |
+| `version`       | integer   | yes      | Version number matching the case snapshot.                                          |
+| `payload`       | text/json | yes      | Full serialized Test Case DSL snapshot.                                             |
+| `change_reason` | text      | no       | Reason for creating this version, such as initial generation or accepted AI update. |
+| `created_at`    | text      | yes      | UTC timestamp.                                                                      |
+
+#### `maestro_flows`
+
+Stores generated Maestro YAML artifacts for executable test cases.
+
+| Field          | Type    | Required | Description                                |
+| -------------- | ------- | --------:| ------------------------------------------ |
+| `id`           | integer | yes      | Primary key.                               |
+| `test_case_id` | integer | yes      | Source `test_cases.id`.                    |
+| `yaml`         | text    | yes      | Generated Maestro flow content.            |
+| `path`         | text    | yes      | Local path where the YAML file is written. |
+| `created_at`   | text    | yes      | UTC timestamp.                             |
+
+#### `test_run_case_results`
+
+Stores one case result inside a test run.
+
+| Field          | Type      | Required | Description                                                                    |
+| -------------- | --------- | --------:| ------------------------------------------------------------------------------ |
+| `id`           | integer   | yes      | Primary key.                                                                   |
+| `run_id`       | integer   | yes      | Parent `test_runs.id`.                                                         |
+| `test_case_id` | integer   | yes      | Executed `test_cases.id`.                                                      |
+| `status`       | text      | yes      | Result status, usually `passed`, `failed`, or `blocked`.                       |
+| `duration_ms`  | integer   | yes      | Runtime duration in milliseconds.                                              |
+| `output`       | text      | yes      | Runner output or dry-run message.                                              |
+| `artifacts`    | text/json | yes      | Serialized artifact metadata, such as flow path, dry-run flag, or return code. |
+| `created_at`   | text      | yes      | UTC timestamp.                                                                 |
+
+#### `case_suggestions`
+
+Stores AI or system suggestions that should be reviewed before mutating the case library.
+
+| Field             | Type      | Required | Description                                                                                       |
+| ----------------- | --------- | --------:| ------------------------------------------------------------------------------------------------- |
+| `id`              | integer   | yes      | Primary key.                                                                                      |
+| `change_set_id`   | integer   | no       | Related `change_sets.id`, when suggestion belongs to a product/design iteration.                  |
+| `suggestion_type` | text      | yes      | Suggested action, such as `new_case`, `update_case`, `deprecate_case`, or `regression_candidate`. |
+| `test_case_id`    | integer   | no       | Related existing case for update/deprecate/regression suggestions.                                |
+| `payload`         | text/json | yes      | Serialized proposed case, patch, or regression metadata.                                          |
+| `reason`          | text      | yes      | Explainable reason for the suggestion.                                                            |
+| `status`          | text      | yes      | Review state, currently defaults to `ai_suggested`.                                               |
+| `created_at`      | text      | yes      | UTC timestamp.                                                                                    |
+| `updated_at`      | text      | yes      | UTC timestamp.                                                                                    |
+
+Suggested suggestion statuses:
+
+```text
+ai_suggested
+reviewed
+accepted
+applied
+rejected
 ```
 
 ## Runtime Architecture
@@ -421,4 +565,3 @@ Current APIs:
 - Retrieval is token-based, not embedding-based.
 - Runtime visual comparison is not yet implemented.
 - Suggestion review exists at the data/API level, but the UI review workflow is still minimal.
-
