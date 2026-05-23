@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 import re
 
-from .ai_client import OpenAIClient
+from .ai_client import AIClient
 from .models import TestAssertion, TestCase, TestStep
 from .rag import Retriever
 
@@ -36,9 +36,9 @@ def extract_rules(text: str) -> list[str]:
 
 
 class CaseGenerator:
-    def __init__(self, retriever: Retriever, ai_client: OpenAIClient | None = None):
+    def __init__(self, retriever: Retriever, ai_client: AIClient | None = None):
         self.retriever = retriever
-        self.ai_client = ai_client or OpenAIClient()
+        self.ai_client = ai_client or AIClient()
         self.last_generation_mode = "rule_fallback"
         self.last_generation_error = ""
 
@@ -101,6 +101,8 @@ class CaseGenerator:
             "enabled": status.enabled,
             "provider": status.provider,
             "model": status.model,
+            "base_url": status.base_url,
+            "api_style": status.api_style,
             "reason": status.reason,
             "last_generation_mode": self.last_generation_mode,
             "last_generation_error": self.last_generation_error,

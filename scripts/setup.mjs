@@ -44,12 +44,19 @@ logStatus("Java 17+", javaVersion >= 17, javaVersion ? `major ${javaVersion}` : 
 const maestroOk = commandExists("maestro");
 logStatus("Maestro CLI", maestroOk, maestroOk ? readVersion("maestro", ["--version"]) : "optional; dry-run works without it");
 
-const openAiKeyOk = Boolean(process.env.OPENAI_API_KEY);
-logStatus("OPENAI_API_KEY", openAiKeyOk, openAiKeyOk ? "AI generation enabled" : "optional; rule-based fallback works without it");
+const aiProvider = process.env.AI_PROVIDER || (process.env.OPENAI_API_KEY || process.env.AI_API_KEY ? "openai" : "");
+const aiConfigured = Boolean(
+  aiProvider ||
+    process.env.OPENAI_API_KEY ||
+    process.env.AI_API_KEY ||
+    process.env.AI_BASE_URL ||
+    process.env.OLLAMA_MODEL
+);
+logStatus("AI provider", aiConfigured, aiConfigured ? `provider ${aiProvider || "custom"}` : "optional; rule-based fallback works without it");
 
 console.log("\nLocal app dependencies");
 console.log("- This MVP uses Python standard library only, so there is no pip install step.");
-console.log("- OpenAI API calls use Python standard library HTTP, so there is no SDK install step.");
+console.log("- AI provider calls use Python standard library HTTP, so there is no SDK install step.");
 console.log("- The RAG implementation is built in. LlamaIndex is planned for the production upgrade, not required here.");
 console.log("- Maestro CLI is optional unless you run npm run dev:maestro or set MAESTRO_ENABLED=true.");
 
@@ -70,8 +77,11 @@ console.log("  npm run dev:maestro  # call local Maestro CLI instead of dry-run"
 console.log("  npm test             # run unit tests");
 console.log("  npm run check        # syntax check Python files");
 console.log("\nAI configuration");
-console.log("  export OPENAI_API_KEY=...         # enable AI case generation");
-console.log("  export AI_MODEL=gpt-4.1-mini      # optional model override");
+console.log("  export AI_PROVIDER=openai              # openai, compatible, ollama, disabled");
+console.log("  export AI_MODEL=gpt-4.1-mini           # or your selected provider model");
+console.log("  export AI_API_KEY=...                  # commercial or compatible provider key");
+console.log("  export AI_BASE_URL=http://localhost... # compatible provider or local endpoint");
+console.log("  export AI_RESPONSE_FORMAT=json_object  # set none for gateways that reject response_format");
 
 if (!pythonOk || !nodeOk || !npmOk) {
   process.exitCode = 1;

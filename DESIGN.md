@@ -31,7 +31,7 @@ The upgraded implementation keeps that MVP shape, but tightens the product loop 
 flowchart TD
   A["Figma / Cursor MCP"] --> B["Export design screens"]
   B --> C["Upload Figma images"]
-  C --> D{"OPENAI_API_KEY set?"}
+  C --> D{"AI provider configured?"}
   D -->|Yes| E["AI extracts UI source model"]
   D -->|No| F["Store as AI-ready artifact"]
   E --> G["Project design memory"]
@@ -59,7 +59,7 @@ flowchart LR
   end
 
   subgraph AI["AI Layer"]
-    C["OpenAI vision extraction"]
+    C["Provider vision extraction"]
     D["Structured test case generation"]
   end
 
@@ -122,9 +122,9 @@ jpeg
 webp
 ```
 
-When `OPENAI_API_KEY` is configured, each image is sent to OpenAI vision and converted into a structured source model.
+When an AI provider is configured, each image is sent to the configured vision-capable model and converted into a structured source model.
 
-When `OPENAI_API_KEY` is not configured, the image is stored as an AI-ready artifact and can still participate in the project memory as a pending source.
+When no AI provider is configured, the image is stored as an AI-ready artifact and can still participate in the project memory as a pending source.
 
 ### Figma MCP Context
 
@@ -196,24 +196,54 @@ AI is used in two places.
 
 ### Source Model Extraction
 
-If OpenAI is configured, uploaded Figma design images are processed with a vision-capable model through the OpenAI Responses API.
+If an AI provider is configured, uploaded Figma design images are processed with a vision-capable model through the selected provider adapter.
 
-The response is constrained with a JSON schema so the platform receives predictable source model data.
+The response is constrained with provider-specific structured output when available, then parsed and validated as JSON so the platform receives predictable source model data.
 
 ### Test Case Generation
 
-The generator retrieves relevant design memory and historical testing context, then asks OpenAI to return structured test cases.
+The generator retrieves relevant design memory and historical testing context, then asks the configured AI provider to return structured test cases.
 
-If OpenAI is not configured, the platform falls back to a deterministic rule-based generator.
+If no provider is configured, the platform falls back to a deterministic rule-based generator.
 
 Current model configuration:
 
 ```bash
+export AI_PROVIDER=openai
 export OPENAI_API_KEY=...
 export AI_MODEL=gpt-4.1-mini
 ```
 
-The platform does not require the OpenAI SDK. It calls the API using Python standard-library HTTP.
+OpenAI-compatible provider:
+
+```bash
+export AI_PROVIDER=compatible
+export AI_BASE_URL=http://127.0.0.1:8000/v1
+export AI_MODEL=your-model
+export AI_API_KEY=optional-key
+export AI_RESPONSE_FORMAT=json_object
+```
+
+Ollama-style local provider:
+
+```bash
+export AI_PROVIDER=ollama
+export AI_BASE_URL=http://127.0.0.1:11434
+export AI_MODEL=llama3.2
+```
+
+Supported provider modes:
+
+```text
+openai
+compatible
+ollama
+disabled
+```
+
+The platform does not require provider SDKs. It calls provider APIs using Python standard-library HTTP.
+
+Provider configuration can be supplied through environment variables or through the Web UI. The current MVP stores UI-entered provider settings in the running server process only; API keys are never returned by the configuration API. A product-grade multi-user version should move provider credentials into an encrypted secret store scoped by project or organization.
 
 ## Test Case DSL
 
@@ -667,7 +697,7 @@ rejected
 Frontend: Static HTML/CSS/JS
 Backend: Python standard-library HTTP server
 Database: SQLite
-AI: OpenAI Responses API when configured
+AI: provider facade for OpenAI, OpenAI-compatible, Ollama-style, or disabled mode
 Retrieval: SQLite rag_nodes + FTS5 + local hash embedding cosine
 Executor: Maestro YAML generator + dry-run validation runner
 Optional executor: local Maestro CLI
@@ -681,6 +711,8 @@ Current APIs:
 
 - `GET /api/health`
 - `GET /api/ai/status`
+- `GET /api/ai/config`
+- `POST /api/ai/config`
 - `POST /api/source-files`
 - `GET /api/source-files`
 - `POST /api/figma/mcp-context`
@@ -703,7 +735,7 @@ Current APIs:
 ## Current Constraints
 
 - The active input path is Figma-only.
-- OpenAI is optional; fallback generation remains available.
+- AI providers are optional; fallback generation remains available.
 - Maestro CLI is optional; dry-run remains available.
 - Retrieval uses local hash embeddings, not external semantic embeddings yet.
 - SQLite FTS5 is used when available; environments without FTS5 fall back to node scanning and cosine scoring.
@@ -727,7 +759,8 @@ Migrations: Alembic
 Vector search: pgvector
 Full-text search: PostgreSQL FTS
 RAG pipeline: LlamaIndex
-Structured AI output: OpenAI Structured Outputs + Pydantic validation, optionally PydanticAI
+AI provider layer: OpenAI, OpenAI-compatible APIs, local Ollama-style APIs, and future custom providers
+Structured AI output: provider-native structured output where available + Pydantic validation, optionally PydanticAI
 Workflow orchestration: LangGraph for AI workflow state, optionally Temporal for external job durability
 Async jobs: Redis + Celery/RQ/Arq
 Object storage: S3 or MinIO

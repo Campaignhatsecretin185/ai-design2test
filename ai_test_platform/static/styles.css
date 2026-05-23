@@ -303,6 +303,21 @@ input[type="file"] {
   border-style: dashed;
 }
 
+input[type="checkbox"] {
+  width: auto;
+  min-width: 18px;
+  min-height: 18px;
+  accent-color: var(--accent);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding-top: 18px;
+  gap: 10px;
+}
+
 textarea {
   min-height: 132px;
   resize: vertical;

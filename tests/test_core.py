@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from ai_test_platform.db import Database
-from ai_test_platform.ai_client import AIStatus
+from ai_test_platform.ai_client import AIClient, AIStatus
 from ai_test_platform.file_ingestion import extract_text
 from ai_test_platform.figma_mcp import build_screen_model, parse_figma_url, screen_model_to_document
 from ai_test_platform.generator import CaseGenerator
@@ -16,6 +16,28 @@ from ai_test_platform.regression import RegressionSelector
 
 
 class CoreFlowTest(unittest.TestCase):
+    def test_ai_provider_facade_supports_open_backends(self) -> None:
+        compatible = AIClient(
+            provider="compatible",
+            model="local-model",
+            base_url="http://127.0.0.1:9999/v1",
+            api_key="",
+        )
+        compatible_status = compatible.status()
+        self.assertTrue(compatible.enabled)
+        self.assertEqual(compatible_status.provider, "compatible")
+        self.assertEqual(compatible_status.api_style, "chat_completions")
+
+        ollama = AIClient(provider="ollama", model="llama3.2", base_url="http://127.0.0.1:11434")
+        ollama_status = ollama.status()
+        self.assertTrue(ollama.enabled)
+        self.assertEqual(ollama_status.provider, "ollama")
+        self.assertEqual(ollama_status.api_style, "ollama_chat")
+
+        unknown = AIClient(provider="unknown-provider", model="x")
+        self.assertFalse(unknown.enabled)
+        self.assertIn("Unknown AI_PROVIDER", unknown.status().reason)
+
     def test_file_text_extraction(self) -> None:
         text, status, notes = extract_text("login.png", b"not-a-real-image", "image/png")
         self.assertEqual(status, "needs_ai")

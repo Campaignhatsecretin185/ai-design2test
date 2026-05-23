@@ -171,8 +171,64 @@ async function loadMemory() {
 async function loadAIStatus() {
   const data = await api("/api/ai/status");
   const ai = data.ai;
-  $("aiStatus").textContent = `${ai.provider} · ${ai.model} · ${ai.enabled ? "enabled" : "fallback"} · last mode: ${ai.last_generation_mode}`;
+  $("aiStatus").textContent = `${ai.provider} · ${ai.model || "no model"} · ${ai.enabled ? "enabled" : "fallback"} · last mode: ${ai.last_generation_mode}`;
   $("aiStatus").title = ai.reason + (ai.last_generation_error ? ` Error: ${ai.last_generation_error}` : "");
+}
+
+async function loadAIConfig() {
+  if (!$("aiProvider")) return;
+  const data = await api("/api/ai/config");
+  const ai = data.ai;
+  $("aiProvider").value = ai.provider || "disabled";
+  $("aiModel").value = ai.model || "";
+  $("aiBaseUrl").value = ai.base_url || "";
+  $("aiResponseFormat").value = ai.response_format || "json_object";
+  $("clearAiApiKey").checked = false;
+  $("aiApiKey").value = "";
+  $("aiConfigBadge").textContent = ai.enabled ? "Enabled" : "Fallback";
+  $("aiConfigResult").innerHTML = `
+    <p>${escapeHtml(ai.reason)}</p>
+    <pre>${escapeHtml(JSON.stringify({
+      provider: ai.provider,
+      model: ai.model,
+      base_url: ai.base_url,
+      api_style: ai.api_style,
+      response_format: ai.response_format,
+      api_key_configured: ai.api_key_configured,
+      enabled: ai.enabled,
+    }, null, 2))}</pre>
+  `;
+}
+
+async function saveAIConfig(overrides = {}) {
+  if (!$("aiProvider")) return;
+  const payload = {
+    provider: $("aiProvider").value,
+    model: $("aiModel").value,
+    base_url: $("aiBaseUrl").value,
+    response_format: $("aiResponseFormat").value,
+    api_key: $("aiApiKey").value,
+    clear_api_key: $("clearAiApiKey").checked,
+    ...overrides,
+  };
+  const data = await api("/api/ai/config", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  $("aiConfigResult").innerHTML = `
+    <p>AI settings saved. Current mode: ${escapeHtml(data.ai.enabled ? "enabled" : "fallback")}</p>
+    <pre>${escapeHtml(JSON.stringify({
+      provider: data.ai.provider,
+      model: data.ai.model,
+      base_url: data.ai.base_url,
+      api_style: data.ai.api_style,
+      response_format: data.ai.response_format,
+      api_key_configured: data.ai.api_key_configured,
+      enabled: data.ai.enabled,
+      reason: data.ai.reason,
+    }, null, 2))}</pre>
+  `;
+  await refresh();
 }
 
 async function loadMemoryContext() {
@@ -227,6 +283,7 @@ async function runRegression() {
 
 async function refresh() {
   await loadAIStatus();
+  await loadAIConfig();
   await loadCases();
   await loadMemory();
 }
@@ -238,6 +295,18 @@ $("selectRegressionBtn").addEventListener("click", selectRegression);
 $("runRegressionBtn").addEventListener("click", runRegression);
 $("refreshBtn").addEventListener("click", refresh);
 $("loadMemoryContextBtn").addEventListener("click", loadMemoryContext);
+if ($("saveAiConfigBtn")) {
+  $("saveAiConfigBtn").addEventListener("click", () => saveAIConfig());
+}
+if ($("disableAiBtn")) {
+  $("disableAiBtn").addEventListener("click", () => saveAIConfig({
+    provider: "disabled",
+    model: "",
+    base_url: "",
+    api_key: "",
+    clear_api_key: true,
+  }));
+}
 
 refresh().catch((error) => {
   $("cases").innerHTML = `<p>${escapeHtml(error.message)}</p>`;

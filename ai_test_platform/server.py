@@ -11,6 +11,7 @@ import os
 import re
 
 from .db import Database
+from .ai_client import AIClient
 from .figma_mcp import build_screen_model, parse_context_payload, screen_model_to_document
 from .file_ingestion import store_and_extract_file
 from .generator import CaseGenerator
@@ -33,6 +34,43 @@ class App:
         self.flow_generator = MaestroFlowGenerator(app_id=os.environ.get("APP_ID", "${APP_ID}"))
         self.runner = MaestroRunner()
         self.regression_selector = RegressionSelector()
+        self.ai_api_key = os.environ.get("AI_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
+
+    def ai_config(self) -> dict[str, Any]:
+        status = self.generator.ai_status()
+        return {
+            "provider": status["provider"],
+            "model": status["model"],
+            "base_url": status.get("base_url", ""),
+            "api_style": status.get("api_style", ""),
+            "response_format": os.environ.get("AI_RESPONSE_FORMAT", "json_object"),
+            "enabled": status["enabled"],
+            "api_key_configured": bool(self.ai_api_key),
+            "reason": status["reason"],
+            "last_generation_mode": status["last_generation_mode"],
+            "last_generation_error": status["last_generation_error"],
+        }
+
+    def update_ai_config(self, payload: dict[str, Any]) -> dict[str, Any]:
+        provider = str(payload.get("provider") or "disabled").strip().lower()
+        model = str(payload.get("model") or "").strip()
+        base_url = str(payload.get("base_url") or "").strip()
+        api_style = str(payload.get("api_style") or "").strip().lower()
+        response_format = str(payload.get("response_format") or "json_object").strip().lower()
+        incoming_key = str(payload.get("api_key") or "")
+        if payload.get("clear_api_key"):
+            self.ai_api_key = ""
+        elif incoming_key:
+            self.ai_api_key = incoming_key
+        os.environ["AI_RESPONSE_FORMAT"] = response_format
+        self.generator.ai_client = AIClient(
+            provider=provider,
+            api_key=self.ai_api_key,
+            model=model,
+            base_url=base_url,
+            api_style=api_style,
+        )
+        return {"ai": self.ai_config()}
 
     def add_document(self, payload: dict[str, Any]) -> dict[str, Any]:
         document = Document(
@@ -165,7 +203,7 @@ class App:
                 )
                 extracted.extracted_text = self._source_model_to_document(ai_source_model)
                 extracted.extraction_status = "ai_extracted"
-                extracted.extraction_notes = "Figma image was parsed by OpenAI vision into a structured source model."
+                extracted.extraction_notes = "Figma image was parsed by the configured AI vision provider into a structured source model."
             except Exception as exc:
                 ai_extraction_error = str(exc)
         document = Document(
@@ -330,6 +368,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True, "version": "0.1.0"})
             if path == "/api/ai/status" and method == "GET":
                 return self.send_json({"ai": APP.generator.ai_status()})
+            if path == "/api/ai/config" and method == "GET":
+                return self.send_json({"ai": APP.ai_config()})
+            if path == "/api/ai/config" and method == "POST":
+                return self.send_json(APP.update_ai_config(self.read_json()))
             if path == "/api/documents" and method == "GET":
                 return self.send_json({"documents": APP.db.list_documents()})
             if path == "/api/documents" and method == "POST":

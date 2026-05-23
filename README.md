@@ -99,7 +99,7 @@ Real Maestro execution also requires Java 17+ and a running Android Emulator, iO
 
 ## Dependencies
 
-This MVP has no third-party Python dependency. The HTTP server, SQLite storage, lightweight RAG layer, and OpenAI API calls are implemented with the Python standard library, so `npm install` does not download any runtime packages.
+This MVP has no third-party Python dependency. The HTTP server, SQLite storage, lightweight RAG layer, and AI provider calls are implemented with the Python standard library, so `npm install` does not download any runtime packages.
 
 ## Figma-Only MVP Mode
 
@@ -110,11 +110,11 @@ Recommended flow:
 1. Use Cursor or another MCP-capable tool to connect to Figma MCP.
 2. Export one or more Figma design screens as PNG/JPG/WebP.
 3. Upload all design images in the Web UI.
-4. If `OPENAI_API_KEY` is set, uploaded Figma images are parsed by OpenAI vision into source models.
+4. If an AI provider is configured, uploaded Figma images are parsed by the configured vision-capable model into source models.
 5. Generate test cases from the Figma design context.
 6. Generate Maestro flows and run them with `npm run dev:maestro`.
 
-Without `OPENAI_API_KEY`, uploaded images are stored as AI-ready artifacts and the system falls back to rule-based generation.
+Without an AI provider, uploaded images are stored as AI-ready artifacts and the system falls back to rule-based generation.
 
 `LlamaIndex`, `pgvector`, and `LangGraph` are production-upgrade recommendations, not required by the current MVP. For a production version, a likely stack is:
 
@@ -124,18 +124,48 @@ FastAPI + LlamaIndex + PostgreSQL/pgvector + LangGraph/Temporal
 
 ## AI Configuration
 
-The platform uses real AI only when `OPENAI_API_KEY` is set. Without it, test case generation falls back to the deterministic rule-based generator.
+The platform uses real AI only when a provider is configured. Without it, test case generation falls back to the deterministic rule-based generator.
+
+You can configure the provider either through environment variables or from the Web UI under **AI Platform Settings**. UI-entered API keys are kept only in the running server process and are not returned by the API.
+
+Supported provider modes:
+
+- `openai`: OpenAI Responses API with strict JSON Schema output
+- `compatible`: OpenAI-compatible Chat Completions API
+- `ollama`: local Ollama-style chat API
+- `disabled`: force rule-based fallback
 
 ```bash
+export AI_PROVIDER=openai
 export OPENAI_API_KEY=...
 export AI_MODEL=gpt-4.1-mini
 npm run dev
 ```
 
+OpenAI-compatible provider example:
+
+```bash
+export AI_PROVIDER=compatible
+export AI_BASE_URL=http://127.0.0.1:8000/v1
+export AI_MODEL=your-model
+export AI_API_KEY=optional-key
+export AI_RESPONSE_FORMAT=json_object # use none if your gateway rejects response_format
+npm run dev
+```
+
+Ollama-style local provider example:
+
+```bash
+export AI_PROVIDER=ollama
+export AI_BASE_URL=http://127.0.0.1:11434
+export AI_MODEL=llama3.2
+npm run dev
+```
+
 Current AI usage:
 
-- OpenAI Responses API
-- Structured Outputs with JSON Schema
+- Provider facade over OpenAI, OpenAI-compatible, and Ollama-style APIs
+- Structured JSON output with provider-specific enforcement where available
 - RAG context + Figma/design context -> structured Test Case DSL
 
 Status endpoint:
@@ -148,6 +178,8 @@ GET /api/ai/status
 
 - `GET /api/health`
 - `GET /api/ai/status`
+- `GET /api/ai/config`
+- `POST /api/ai/config`
 - `POST /api/documents`
 - `GET /api/documents`
 - `POST /api/source-files`

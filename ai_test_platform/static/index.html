@@ -23,6 +23,8 @@
         <a href="#library">Cases</a>
         <a href="#regression">Regression</a>
         <a href="#memory">Memory</a>
+        <!-- Provider UI is intentionally hidden for now; configure AI through env vars. -->
+        <!-- <a href="#settings">Settings</a> -->
       </nav>
 
       <div class="sidebar-footer">
@@ -60,6 +62,47 @@
             <strong>Cases + failures</strong>
           </div>
         </section>
+
+        <!-- Provider UI is intentionally hidden for now; configure AI through env vars.
+        <section id="settings" class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Provider</p>
+              <h2>AI Platform Settings</h2>
+            </div>
+            <span id="aiConfigBadge" class="pill">Loading</span>
+          </div>
+          <div class="grid two">
+            <label>Provider
+              <select id="aiProvider">
+                <option value="disabled">Disabled / Rule fallback</option>
+                <option value="openai">OpenAI Responses API</option>
+                <option value="compatible">OpenAI-compatible API</option>
+                <option value="ollama">Ollama local API</option>
+              </select>
+            </label>
+            <label>Model<input id="aiModel" placeholder="gpt-4.1-mini, llama3.2, your-model"></label>
+          </div>
+          <div class="grid two">
+            <label>Base URL<input id="aiBaseUrl" placeholder="https://api.openai.com/v1 or http://127.0.0.1:11434"></label>
+            <label>Response Format
+              <select id="aiResponseFormat">
+                <option value="json_object">json_object</option>
+                <option value="none">none</option>
+              </select>
+            </label>
+          </div>
+          <div class="grid two">
+            <label>API Key<input id="aiApiKey" type="password" autocomplete="off" placeholder="Leave blank to keep current key"></label>
+            <label class="checkbox-row"><input id="clearAiApiKey" type="checkbox"> Clear stored runtime key</label>
+          </div>
+          <div class="actions">
+            <button id="saveAiConfigBtn">Save AI Settings</button>
+            <button id="disableAiBtn" class="secondary">Use Rule Fallback</button>
+          </div>
+          <div id="aiConfigResult"></div>
+        </section>
+        -->
 
         <section id="ingest" class="panel featured">
           <div class="panel-head">

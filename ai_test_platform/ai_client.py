@@ -6,6 +6,7 @@ from urllib import request, error
 import base64
 import json
 import os
+import re
 
 
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
@@ -127,164 +128,39 @@ class AIStatus:
     provider: str
     model: str
     reason: str
+    base_url: str = ""
+    api_style: str = ""
 
 
-class OpenAIClient:
-    def __init__(
-        self,
-        api_key: str | None = None,
-        model: str | None = None,
-        base_url: str | None = None,
-        timeout_seconds: int | None = None,
-    ) -> None:
-        self.api_key = api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")
-        self.model = model or os.environ.get("AI_MODEL") or DEFAULT_OPENAI_MODEL
-        self.base_url = (base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
-        self.timeout_seconds = timeout_seconds or int(os.environ.get("AI_TIMEOUT_SECONDS") or "45")
+class ProviderClient:
+    provider = "disabled"
+    api_style = ""
 
     @property
     def enabled(self) -> bool:
-        return bool(self.api_key)
+        return False
 
     def status(self) -> AIStatus:
-        if not self.enabled:
-            return AIStatus(
-                enabled=False,
-                provider="openai",
-                model=self.model,
-                reason="OPENAI_API_KEY is not set. Rule-based fallback generation is active.",
-            )
-        return AIStatus(
-            enabled=True,
-            provider="openai",
-            model=self.model,
-            reason="OPENAI_API_KEY is set. Structured AI generation is active.",
-        )
+        return AIStatus(False, self.provider, "", "AI provider is disabled.")
 
-    def generate_test_cases(
-        self,
-        requirement: str,
-        feature: str,
-        screen: str,
-        platforms: list[str],
-        max_cases: int,
-        contexts: list[dict[str, Any]],
-        prd_contexts: list[dict[str, Any]],
-        figma_contexts: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        if not self.enabled:
-            return []
-        prompt = self._build_case_prompt(
-            requirement=requirement,
-            feature=feature,
-            screen=screen,
-            platforms=platforms,
-            max_cases=max_cases,
-            contexts=contexts,
-            prd_contexts=prd_contexts,
-            figma_contexts=figma_contexts,
-        )
-        payload = {
-            "model": self.model,
-            "input": prompt,
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": "test_case_generation",
-                    "description": "Structured mobile app test cases for the platform Test Case DSL.",
-                    "strict": True,
-                    "schema": TEST_CASE_SCHEMA,
-                }
-            },
-        }
-        data = self._post_json("/responses", payload)
-        parsed = self._extract_json(data)
-        cases = parsed.get("cases", [])
-        return cases if isinstance(cases, list) else []
+    def generate_test_cases(self, **kwargs: Any) -> list[dict[str, Any]]:
+        return []
 
-    def extract_figma_image_source_model(
-        self,
-        image_bytes: bytes,
-        content_type: str,
-        filename: str,
-        feature: str,
-        screen: str,
-    ) -> dict[str, Any]:
-        if not self.enabled:
-            return {}
-        image_data = base64.b64encode(image_bytes).decode("ascii")
-        media_type = content_type or "image/png"
-        payload = {
-            "model": self.model,
-            "input": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": f"""Extract a structured testing source model from this Figma design image.
+    def extract_figma_image_source_model(self, **kwargs: Any) -> dict[str, Any]:
+        return {}
 
-Focus on mobile app testing. Identify visible UI text, controls, screen states, and concrete testable points.
 
-Filename: {filename}
-Feature: {feature}
-Screen: {screen}
-""",
-                        },
-                        {
-                            "type": "input_image",
-                            "image_url": f"data:{media_type};base64,{image_data}",
-                        },
-                    ],
-                }
-            ],
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": "figma_image_source_model",
-                    "description": "Structured source model extracted from a Figma design image.",
-                    "strict": True,
-                    "schema": SOURCE_MODEL_SCHEMA,
-                }
-            },
-        }
-        data = self._post_json("/responses", payload)
-        parsed = self._extract_json(data)
-        parsed["source_type"] = parsed.get("source_type") or "figma_image"
-        parsed["feature"] = parsed.get("feature") or feature
-        parsed["screen"] = parsed.get("screen") or screen
-        return parsed
+class DisabledAIClient(ProviderClient):
+    def __init__(self, provider: str = "disabled", model: str = "", reason: str = "") -> None:
+        self.provider = provider
+        self.model = model
+        self.reason = reason or "AI provider is disabled. Rule-based fallback generation is active."
 
-    def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        req = request.Request(
-            f"{self.base_url}{path}",
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-        )
-        try:
-            with request.urlopen(req, timeout=self.timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"OpenAI API error {exc.code}: {detail}") from exc
-        except error.URLError as exc:
-            raise RuntimeError(f"OpenAI API request failed: {exc.reason}") from exc
+    def status(self) -> AIStatus:
+        return AIStatus(False, self.provider, self.model, self.reason)
 
-    def _extract_json(self, response_data: dict[str, Any]) -> dict[str, Any]:
-        if isinstance(response_data.get("output_text"), str):
-            return json.loads(response_data["output_text"])
-        for item in response_data.get("output", []):
-            for content in item.get("content", []):
-                text = content.get("text")
-                if isinstance(text, str) and text.strip():
-                    return json.loads(text)
-        raise RuntimeError("OpenAI response did not contain structured output text")
 
+class PromptMixin:
     def _build_case_prompt(
         self,
         requirement: str,
@@ -297,7 +173,6 @@ Screen: {screen}
         figma_contexts: list[dict[str, Any]],
     ) -> str:
         context_block = self._format_contexts(contexts)
-        # Figma-only MVP: PRD context is intentionally empty unless a future mode re-enables it.
         prd_block = self._format_contexts(prd_contexts)
         figma_block = self._format_contexts(figma_contexts)
         return f"""You are generating executable mobile app test cases for an AI testing platform.
@@ -331,6 +206,21 @@ Combined retrieved context:
 {context_block}
 """
 
+    def _build_source_model_prompt(self, filename: str, feature: str, screen: str) -> str:
+        return f"""Extract a structured testing source model from this Figma design image.
+
+Return JSON that matches the provided schema exactly.
+
+Focus on mobile app testing. Identify visible UI text, controls, screen states, and concrete testable points.
+
+Filename: {filename}
+Feature: {feature}
+Screen: {screen}
+"""
+
+    def _schema_instruction(self, schema: dict[str, Any]) -> str:
+        return "\n\nJSON schema:\n" + json.dumps(schema, ensure_ascii=False, sort_keys=True)
+
     def _format_contexts(self, contexts: list[dict[str, Any]], limit: int = 8) -> str:
         if not contexts:
             return "No context found."
@@ -343,3 +233,377 @@ Combined retrieved context:
             content = str(context.get("content") or "").strip()[:1600]
             lines.append(f"[{index}] source={source} document={document_id} chunk={chunk_id} score={score}\n{content}")
         return "\n\n".join(lines)
+
+
+class HTTPJSONClient(PromptMixin, ProviderClient):
+    def __init__(
+        self,
+        provider: str,
+        model: str,
+        base_url: str,
+        api_key: str = "",
+        timeout_seconds: int = 45,
+        api_style: str = "",
+    ) -> None:
+        self.provider = provider
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout_seconds = timeout_seconds
+        self.api_style = api_style
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.model and self.base_url)
+
+    def status(self) -> AIStatus:
+        if not self.enabled:
+            return AIStatus(
+                False,
+                self.provider,
+                self.model,
+                f"{self.provider} is not configured. Rule-based fallback generation is active.",
+                self.base_url,
+                self.api_style,
+            )
+        return AIStatus(
+            True,
+            self.provider,
+            self.model,
+            f"{self.provider} provider is configured. Structured AI generation is active.",
+            self.base_url,
+            self.api_style,
+        )
+
+    def _post_json(self, path: str, payload: dict[str, Any], auth_required: bool = False) -> dict[str, Any]:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        elif auth_required:
+            raise RuntimeError(f"{self.provider} API key is required")
+        req = request.Request(f"{self.base_url}{path}", data=body, method="POST", headers=headers)
+        try:
+            with request.urlopen(req, timeout=self.timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"{self.provider} API error {exc.code}: {detail}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"{self.provider} API request failed: {exc.reason}") from exc
+
+    def _extract_json_from_text(self, text: str) -> dict[str, Any]:
+        text = text.strip()
+        fence = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, flags=re.DOTALL)
+        if fence:
+            text = fence.group(1).strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+            raise
+
+
+class OpenAIResponsesClient(HTTPJSONClient):
+    def __init__(self, api_key: str, model: str, base_url: str, timeout_seconds: int) -> None:
+        super().__init__("openai", model, base_url, api_key, timeout_seconds, api_style="responses")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key and self.model and self.base_url)
+
+    def generate_test_cases(
+        self,
+        requirement: str,
+        feature: str,
+        screen: str,
+        platforms: list[str],
+        max_cases: int,
+        contexts: list[dict[str, Any]],
+        prd_contexts: list[dict[str, Any]],
+        figma_contexts: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        if not self.enabled:
+            return []
+        prompt = self._build_case_prompt(requirement, feature, screen, platforms, max_cases, contexts, prd_contexts, figma_contexts)
+        payload = {
+            "model": self.model,
+            "input": prompt,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "test_case_generation",
+                    "description": "Structured mobile app test cases for the platform Test Case DSL.",
+                    "strict": True,
+                    "schema": TEST_CASE_SCHEMA,
+                }
+            },
+        }
+        parsed = self._extract_responses_json(self._post_json("/responses", payload, auth_required=True))
+        cases = parsed.get("cases", [])
+        return cases if isinstance(cases, list) else []
+
+    def extract_figma_image_source_model(
+        self,
+        image_bytes: bytes,
+        content_type: str,
+        filename: str,
+        feature: str,
+        screen: str,
+    ) -> dict[str, Any]:
+        if not self.enabled:
+            return {}
+        image_data = base64.b64encode(image_bytes).decode("ascii")
+        media_type = content_type or "image/png"
+        payload = {
+            "model": self.model,
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": self._build_source_model_prompt(filename, feature, screen)},
+                        {"type": "input_image", "image_url": f"data:{media_type};base64,{image_data}"},
+                    ],
+                }
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "figma_image_source_model",
+                    "description": "Structured source model extracted from a Figma design image.",
+                    "strict": True,
+                    "schema": SOURCE_MODEL_SCHEMA,
+                }
+            },
+        }
+        parsed = self._extract_responses_json(self._post_json("/responses", payload, auth_required=True))
+        parsed["source_type"] = parsed.get("source_type") or "figma_image"
+        parsed["feature"] = parsed.get("feature") or feature
+        parsed["screen"] = parsed.get("screen") or screen
+        return parsed
+
+    def _extract_responses_json(self, response_data: dict[str, Any]) -> dict[str, Any]:
+        if isinstance(response_data.get("output_text"), str):
+            return self._extract_json_from_text(response_data["output_text"])
+        for item in response_data.get("output", []):
+            for content in item.get("content", []):
+                text = content.get("text")
+                if isinstance(text, str) and text.strip():
+                    return self._extract_json_from_text(text)
+        raise RuntimeError("AI response did not contain structured output text")
+
+
+class OpenAICompatibleChatClient(HTTPJSONClient):
+    def __init__(self, provider: str, api_key: str, model: str, base_url: str, timeout_seconds: int) -> None:
+        super().__init__(provider, model, base_url, api_key, timeout_seconds, api_style="chat_completions")
+        self.response_format = os.environ.get("AI_RESPONSE_FORMAT", "json_object").strip().lower()
+
+    def generate_test_cases(
+        self,
+        requirement: str,
+        feature: str,
+        screen: str,
+        platforms: list[str],
+        max_cases: int,
+        contexts: list[dict[str, Any]],
+        prd_contexts: list[dict[str, Any]],
+        figma_contexts: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        if not self.enabled:
+            return []
+        prompt = self._build_case_prompt(requirement, feature, screen, platforms, max_cases, contexts, prd_contexts, figma_contexts)
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt + self._schema_instruction(TEST_CASE_SCHEMA)}],
+            "temperature": 0,
+        }
+        if self.response_format != "none":
+            payload["response_format"] = {"type": self.response_format or "json_object"}
+        parsed = self._extract_chat_json(self._post_json("/chat/completions", payload))
+        cases = parsed.get("cases", [])
+        return cases if isinstance(cases, list) else []
+
+    def extract_figma_image_source_model(
+        self,
+        image_bytes: bytes,
+        content_type: str,
+        filename: str,
+        feature: str,
+        screen: str,
+    ) -> dict[str, Any]:
+        if not self.enabled:
+            return {}
+        image_data = base64.b64encode(image_bytes).decode("ascii")
+        media_type = content_type or "image/png"
+        prompt = self._build_source_model_prompt(filename, feature, screen) + self._schema_instruction(SOURCE_MODEL_SCHEMA)
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_data}"}},
+                    ],
+                }
+            ],
+            "temperature": 0,
+        }
+        if self.response_format != "none":
+            payload["response_format"] = {"type": self.response_format or "json_object"}
+        parsed = self._extract_chat_json(self._post_json("/chat/completions", payload))
+        parsed["source_type"] = parsed.get("source_type") or "figma_image"
+        parsed["feature"] = parsed.get("feature") or feature
+        parsed["screen"] = parsed.get("screen") or screen
+        return parsed
+
+    def _extract_chat_json(self, response_data: dict[str, Any]) -> dict[str, Any]:
+        choices = response_data.get("choices", [])
+        if choices:
+            content = choices[0].get("message", {}).get("content", "")
+            if isinstance(content, str) and content.strip():
+                return self._extract_json_from_text(content)
+        raise RuntimeError("AI chat response did not contain structured output text")
+
+
+class OllamaChatClient(HTTPJSONClient):
+    def __init__(self, model: str, base_url: str, timeout_seconds: int) -> None:
+        super().__init__("ollama", model, base_url, "", timeout_seconds, api_style="ollama_chat")
+
+    def generate_test_cases(
+        self,
+        requirement: str,
+        feature: str,
+        screen: str,
+        platforms: list[str],
+        max_cases: int,
+        contexts: list[dict[str, Any]],
+        prd_contexts: list[dict[str, Any]],
+        figma_contexts: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        if not self.enabled:
+            return []
+        prompt = self._build_case_prompt(requirement, feature, screen, platforms, max_cases, contexts, prd_contexts, figma_contexts)
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt + self._schema_instruction(TEST_CASE_SCHEMA)}],
+            "stream": False,
+            "format": "json",
+        }
+        parsed = self._extract_ollama_json(self._post_json("/api/chat", payload))
+        cases = parsed.get("cases", [])
+        return cases if isinstance(cases, list) else []
+
+    def extract_figma_image_source_model(
+        self,
+        image_bytes: bytes,
+        content_type: str,
+        filename: str,
+        feature: str,
+        screen: str,
+    ) -> dict[str, Any]:
+        if not self.enabled:
+            return {}
+        prompt = self._build_source_model_prompt(filename, feature, screen) + self._schema_instruction(SOURCE_MODEL_SCHEMA)
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                    "images": [base64.b64encode(image_bytes).decode("ascii")],
+                }
+            ],
+            "stream": False,
+            "format": "json",
+        }
+        parsed = self._extract_ollama_json(self._post_json("/api/chat", payload))
+        parsed["source_type"] = parsed.get("source_type") or "figma_image"
+        parsed["feature"] = parsed.get("feature") or feature
+        parsed["screen"] = parsed.get("screen") or screen
+        return parsed
+
+    def _extract_ollama_json(self, response_data: dict[str, Any]) -> dict[str, Any]:
+        message = response_data.get("message", {})
+        content = message.get("content", "")
+        if isinstance(content, str) and content.strip():
+            return self._extract_json_from_text(content)
+        if isinstance(response_data.get("response"), str):
+            return self._extract_json_from_text(response_data["response"])
+        raise RuntimeError("Ollama response did not contain structured output text")
+
+
+class AIClient(ProviderClient):
+    def __init__(
+        self,
+        provider: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        timeout_seconds: int | None = None,
+        api_style: str | None = None,
+    ) -> None:
+        timeout = timeout_seconds or int(os.environ.get("AI_TIMEOUT_SECONDS") or "45")
+        selected_provider = (provider or os.environ.get("AI_PROVIDER") or self._default_provider()).strip().lower()
+        selected_model = model or os.environ.get("AI_MODEL") or os.environ.get("OPENAI_MODEL") or ""
+        selected_key = api_key if api_key is not None else (os.environ.get("AI_API_KEY") or os.environ.get("OPENAI_API_KEY") or "")
+        selected_base_url = base_url or os.environ.get("AI_BASE_URL") or ""
+        selected_style = (api_style or os.environ.get("AI_API_STYLE") or "").strip().lower()
+        self.client = self._build_client(selected_provider, selected_key, selected_model, selected_base_url, timeout, selected_style)
+
+    @property
+    def enabled(self) -> bool:
+        return self.client.enabled
+
+    def status(self) -> AIStatus:
+        return self.client.status()
+
+    def generate_test_cases(self, **kwargs: Any) -> list[dict[str, Any]]:
+        return self.client.generate_test_cases(**kwargs)
+
+    def extract_figma_image_source_model(self, **kwargs: Any) -> dict[str, Any]:
+        return self.client.extract_figma_image_source_model(**kwargs)
+
+    def _default_provider(self) -> str:
+        if os.environ.get("OPENAI_API_KEY") or os.environ.get("AI_API_KEY"):
+            return "openai"
+        if os.environ.get("OLLAMA_MODEL"):
+            return "ollama"
+        return "disabled"
+
+    def _build_client(
+        self,
+        provider: str,
+        api_key: str,
+        model: str,
+        base_url: str,
+        timeout_seconds: int,
+        api_style: str,
+    ) -> ProviderClient:
+        if provider in {"", "disabled", "none", "false"}:
+            return DisabledAIClient("disabled", model)
+        if provider == "openai":
+            openai_model = model or DEFAULT_OPENAI_MODEL
+            openai_base = base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
+            if api_style == "chat_completions":
+                return OpenAICompatibleChatClient("openai", api_key, openai_model, openai_base, timeout_seconds)
+            return OpenAIResponsesClient(api_key, openai_model, openai_base, timeout_seconds)
+        if provider in {"compatible", "openai-compatible", "custom"}:
+            if not base_url:
+                return DisabledAIClient(provider, model, "AI_BASE_URL is required for OpenAI-compatible providers.")
+            if not model:
+                return DisabledAIClient(provider, model, "AI_MODEL is required for OpenAI-compatible providers.")
+            return OpenAICompatibleChatClient(provider, api_key, model, base_url, timeout_seconds)
+        if provider == "ollama":
+            ollama_model = model or os.environ.get("OLLAMA_MODEL") or ""
+            ollama_base = base_url or os.environ.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434"
+            if not ollama_model:
+                return DisabledAIClient("ollama", "", "AI_MODEL or OLLAMA_MODEL is required for Ollama.")
+            return OllamaChatClient(ollama_model, ollama_base, timeout_seconds)
+        return DisabledAIClient(provider, model, f"Unknown AI_PROVIDER '{provider}'.")
+
+
+# Backward-compatible name used by older code paths.
+OpenAIClient = AIClient
